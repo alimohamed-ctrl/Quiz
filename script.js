@@ -1,19 +1,17 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxiIoAgbzsfWSc3lCwTW9Dv-TPKyvz0VbYh8fWc_iJPpXL5R9wp3pXpeWExQLvIhqOy4w/exec";
 let quizQuestions = [];
+let timeLeft = 600; // 10 دقائق تعادل 600 ثانية
+let timerInterval = null;
 
-// 1. تشغيل الإعدادات بأمان بعد تحميل واجهة الـ HTML بالكامل لمنع كراش السكريبت
 document.addEventListener('DOMContentLoaded', () => {
-    // التحقق من الوضع المفضل المخزن
     if (localStorage.getItem('theme') === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
         const themeBtn = document.getElementById('themeBtn');
         if (themeBtn) themeBtn.innerText = "☀️ وضع مضيء";
     }
-    // البدء في جلب الأسئلة
     loadQuiz();
 });
 
-// 2. دالة تبديل الوضع الليلي والنهاري بأمان
 function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const themeBtn = document.getElementById('themeBtn');
@@ -29,7 +27,7 @@ function toggleTheme() {
     }
 }
 
-// 3. جلب الأسئلة من جوجل شيت
+// جلب الأسئلة وتشغيل التايمر
 async function loadQuiz() {
     try {
         const response = await fetch(API_URL);
@@ -37,15 +35,17 @@ async function loadQuiz() {
         
         document.getElementById('loading').style.display = 'none';
         document.getElementById('submit-btn').style.display = 'block';
+        document.getElementById('quizHeader').style.display = 'block'; // إظهار التايمر بعد تحميل الأسئلة
         
         displayQuestions();
+        startTimer(); // بدء العد التنازلي
     } catch (error) {
         document.getElementById('loading').innerText = "فشل استدعاء الاختبار، يرجى التحقق من اتصال الإنترنت وتحديث الصفحة.";
         console.error(error);
     }
 }
 
-// 4. عرض الأسئلة في الواجهة
+// عرض الأسئلة مع إضافة حدث دالة الإنجاز المباشر
 function displayQuestions() {
     const quizContainer = document.getElementById('quiz-container');
     quizContainer.innerHTML = "";
@@ -57,7 +57,7 @@ function displayQuestions() {
             if (cleanedOpt) {
                 optionsHTML += `
                     <label class="option-label">
-                        <input type="radio" name="q${index}" value="${cleanedOpt}">
+                        <input type="radio" name="q${index}" value="${cleanedOpt}" onchange="updateProgressBar()">
                         <span>${cleanedOpt}</span>
                     </label>
                 `;
@@ -73,21 +73,69 @@ function displayQuestions() {
     });
 }
 
-// 5. معالجة التصحيح وعرض النتيجة فوراً وإرسال البيانات في الخلفية
-async function submitQuiz() {
-    const empName = document.getElementById('employee-name').value.trim();
-    if (!empName) { alert("يرجى إدخال اسمك أولاً!"); return; }
-    
-    // التحقق من حل جميع الأسئلة
-    let answeredAll = true;
+// دالة تحديث شريط الإنجاز العلوي
+function updateProgressBar() {
+    let answeredCount = 0;
     quizQuestions.forEach((q, index) => {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
-        if (!selected) answeredAll = false;
+        if (selected) answeredCount++;
     });
+    
+    let percentage = quizQuestions.length > 0 ? Math.round((answeredCount / quizQuestions.length) * 100) : 0;
+    document.getElementById('progressBarFill').style.width = `${percentage}%`;
+    document.getElementById('progressPercent').innerText = `${percentage}%`;
+}
 
-    if (!answeredAll) {
-        const confirmSubmit = confirm("لم تقم بحل جميع الأسئلة المطروحة، هل أنت متأكد من رغبتك في الإرسال؟");
-        if (!confirmSubmit) return;
+// نظام تشغيل وإدارة الوقت التنازلي
+function startTimer() {
+    timerInterval = setInterval(() => {
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            alert("⏰ انتهى الوقت المحدد للاختبار (10 دقائق)! سيتم حفظ وإرسال إجاباتك الحالية تلقائياً.");
+            submitQuiz(true); // الإرسال التلقائي الإجباري
+        } else {
+            timeLeft--;
+            renderTimer();
+        }
+    }, 1000);
+}
+
+function renderTimer() {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    document.getElementById('timerText').innerText = 
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// معالجة التصحيح وعرض النتيجة
+async function submitQuiz(isTimeOut = false) {
+    // إيقاف العداد فوراً لمنع التكرار
+    if (timerInterval) clearInterval(timerInterval);
+
+    let empName = document.getElementById('employee-name').value.trim();
+    if (!empName) { 
+        empName = isTimeOut ? "موظف لم يكتب اسمه (انتهى وقته)" : "موظف لم يحدد الاسم";
+        if (!isTimeOut) {
+            alert("يرجى إدخال اسمك أولاً!"); 
+            startTimer(); // إعادة تشغيل المؤقت لو ألغى الإرسال بسبب الاسم
+            return; 
+        }
+    }
+    
+    if (!isTimeOut) {
+        let answeredAll = true;
+        quizQuestions.forEach((q, index) => {
+            const selected = document.querySelector(`input[name="q${index}"]:checked`);
+            if (!selected) answeredAll = false;
+        });
+
+        if (!answeredAll) {
+            const confirmSubmit = confirm("لم تقم بحل جميع الأسئلة المطروحة، هل أنت متأكد من رغبتك في الإرسال؟");
+            if (!confirmSubmit) {
+                startTimer(); // تفعيل التايمر مجدداً في حال تراجع عن الإرسال
+                return;
+            }
+        }
     }
     
     let score = 0;
@@ -113,30 +161,29 @@ async function submitQuiz() {
     const finalResult = `${score} من ${quizQuestions.length}`;
     const reportDetails = detailsArray.join(" | ");
     
-    // [تحديث جوهري]: إظهار صفحة النتيجة فوراً للموظف لضمان تجربة مستخدم سريعة وبدون تعليق
+    // توجيه فوري للموظف لصفحة نتيجته الملونة
     showResultsPage(empName, score);
     
-    // إرسال البيانات لجوجل شيت هادئاً في الخلفية (تم إزالة الـ headers لحل مشكلة الـ CORS تماماً)
+    // إرسال البيانات بشكل آمن ومخفي لجوجل شيت
     try {
         await fetch(API_URL, {
             method: "POST",
             mode: "no-cors", 
             body: JSON.stringify({ name: empName, score: finalResult, details: reportDetails })
         });
-        console.log("تم حفظ النتيجة في Google Sheets بنجاح.");
+        console.log("تم تحديث شيت الإدارة بنجاح.");
     } catch (error) {
-        console.error("فشل إرسال النسخة الاحتياطية للشيت:", error);
+        console.error("فشل إرسال النسخة الخلفية للشيت:", error);
     }
 }
 
-// 6. بناء شاشة التقييم النهائي وعرض الأسئلة ملونة
+// بناء لوحة التحكم ومراجعة الأسئلة
 function showResultsPage(name, score) {
     document.getElementById('quiz-view').style.display = 'none';
     document.getElementById('result-view').style.display = 'block';
     
     document.getElementById('employee-greeting').innerText = `أهلاً بك يا ${name}، لقد أتممت الاختبار بنجاح وتم تسجيل النتيجة بمستندات الإدارة.`;
     
-    // حساب النسبة المئوية بدقة
     let percentage = quizQuestions.length > 0 ? Math.round((score / quizQuestions.length) * 100) : 0;
     document.getElementById('percentageCircle').innerHTML = `${percentage}% <span>النسبة المئوية</span>`;
     document.getElementById('totalScoreText').innerText = `مجموع إجاباتك الصحيحة هو: ${score} من أصل ${quizQuestions.length} سؤال.`;
@@ -157,9 +204,9 @@ function showResultsPage(name, score) {
                 let cssClass = "";
                 
                 if (cleanedOpt === correctAnswer) {
-                    cssClass = "correct-opt"; // أخضر للإجابة الصحيحة
+                    cssClass = "correct-opt";
                 } else if (cleanedOpt === userSelection && !isCorrect) {
-                    cssClass = "wrong-opt"; // أحمر لإجابة الموظف الخاطئة
+                    cssClass = "wrong-opt";
                 }
                 
                 if (cleanedOpt) {
@@ -186,6 +233,5 @@ function showResultsPage(name, score) {
         `;
     });
     
-    // الصعود التلقائي لأعلى الصفحة لمشاهدة النتيجة مباشرة
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
