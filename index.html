@@ -68,6 +68,60 @@
             align-items: center;
             gap: 5px;
             transition: all 0.2s;
+            z-index: 101;
+        }
+
+        /* شريط التايمر والإنجاز الثابت الذكي */
+        .sticky-header {
+            position: sticky;
+            top: -41px; /* يلتصق بأعلى الشاشة بسلاسة */
+            background: var(--card-bg);
+            padding: 15px 0;
+            border-bottom: 2px solid var(--border-color);
+            z-index: 100;
+            margin-bottom: 35px;
+            transition: background-color 0.3s;
+        }
+
+        .header-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .timer-box {
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.08);
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            font-variant-numeric: tabular-nums; /* تمنع اهتزاز الأرقام أثناء العد التنازلي */
+        }
+
+        .progress-box {
+            color: var(--primary);
+            background: rgba(2, 132, 199, 0.08);
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(2, 132, 199, 0.2);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.3s ease;
         }
 
         h1 {
@@ -210,6 +264,16 @@
         <h1>اختبار موظفين مبيعات مران</h1>
         <div class="subtitle">الرجاء التركيز والإجابة على كافة الأسئلة المطلوبة</div>
         
+        <div class="sticky-header" id="quizHeader" style="display: none;">
+            <div class="header-meta">
+                <div class="timer-box">⏱️ الوقت المتبقي: <span id="timerText">10:00</span></div>
+                <div class="progress-box">نسبة الإنجاز: <span id="progressPercent">0%</span></div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="progressBarFill"></div>
+            </div>
+        </div>
+
         <div class="input-group">
             <label for="employee-name">اسم الموظف بالكامل:</label>
             <input type="text" id="employee-name" placeholder="أدخل اسمك ثلاثياً أو رباعياً">
@@ -218,7 +282,7 @@
         <div id="loading">جاري جلب حزمة الأسئلة المحدثة...</div>
         <div id="quiz-container"></div>
 
-        <button id="submit-btn" class="main-btn" onclick="submitQuiz()" style="display: none;">إنهاء الاختبار وإرسال الإجابات</button>
+        <button id="submit-btn" class="main-btn" onclick="submitQuiz(false)" style="display: none;">إنهاء الاختبار وإرسال الإجابات</button>
     </div>
 
     <div id="result-view" style="display: none;">
