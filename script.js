@@ -1,7 +1,8 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxiIoAgbzsfWSc3lCwTW9Dv-TPKyvz0VbYh8fWc_iJPpXL5R9wp3pXpeWExQLvIhqOy4w/exec";
 let quizQuestions = [];
-let timeLeft = 600; // 10 دقائق تعادل 600 ثانية
+let timeLeft = 600; // 10 دقائق
 let timerInterval = null;
+let employeeName = ""; // لحفظ الاسم عالمياً
 
 document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'dark') {
@@ -9,7 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const themeBtn = document.getElementById('themeBtn');
         if (themeBtn) themeBtn.innerText = "☀️ وضع مضيء";
     }
-    loadQuiz();
+    // نقوم بجلب الأسئلة في الخلفية لتكون جاهزة فوراً عند بدء الموظف
+    preloadQuizData();
 });
 
 function toggleTheme() {
@@ -27,25 +29,57 @@ function toggleTheme() {
     }
 }
 
-// جلب الأسئلة وتشغيل التايمر
-async function loadQuiz() {
+// دالة جلب البيانات المسبق
+async function preloadQuizData() {
     try {
         const response = await fetch(API_URL);
         quizQuestions = await response.json();
-        
         document.getElementById('loading').style.display = 'none';
-        document.getElementById('submit-btn').style.display = 'block';
-        document.getElementById('quizHeader').style.display = 'block'; // إظهار التايمر بعد تحميل الأسئلة
-        
-        displayQuestions();
-        startTimer(); // بدء العد التنازلي
     } catch (error) {
-        document.getElementById('loading').innerText = "فشل استدعاء الاختبار، يرجى التحقق من اتصال الإنترنت وتحديث الصفحة.";
-        console.error(error);
+        console.error("خطأ جلب الأسئلة المسبق:", error);
     }
 }
 
-// عرض الأسئلة مع إضافة حدث دالة الإنجاز المباشر
+// [دالة جوهرية جديدة]: تبدأ فقط بعد التأكد من الاسم وضغط الزر
+function startQuiz() {
+    const nameInput = document.getElementById('employee-name').value.trim();
+    if (!nameInput) {
+        alert("تنبيه: يرجى كتابة اسمك الكامل أولاً قبل بدء الاختبار والتوقيت!");
+        return;
+    }
+    
+    employeeName = nameInput; // تخزين الاسم
+    
+    // الانتقال لواجهة الأسئلة وإخفاء واجهة الدخول
+    document.getElementById('login-view').style.display = 'none';
+    document.getElementById('quiz-view').style.display = 'block';
+    
+    // في حال تأخر التحميل بالخلفية
+    if (quizQuestions.length === 0) {
+        document.getElementById('loading').innerText = "ثواني.. جاري إعداد ورقة الأسئلة الخاصة بك...";
+        checkDataLoadedInterval();
+    } else {
+        initQuizDisplay();
+    }
+}
+
+function checkDataLoadedInterval() {
+    let checkTimer = setInterval(() => {
+        if (quizQuestions.length > 0) {
+            clearInterval(checkTimer);
+            document.getElementById('loading').style.display = 'none';
+            initQuizDisplay();
+        }
+    }, 500);
+}
+
+function initQuizDisplay() {
+    displayQuestions();
+    document.getElementById('submit-btn').style.display = 'block';
+    startTimer(); // بدء التايمر الـ 10 دقائق الآن بالظبط!
+}
+
+// عرض الأسئلة
 function displayQuestions() {
     const quizContainer = document.getElementById('quiz-container');
     quizContainer.innerHTML = "";
@@ -73,7 +107,7 @@ function displayQuestions() {
     });
 }
 
-// دالة تحديث شريط الإنجاز العلوي
+// تحديث البروجرس بار العلوي الثابت
 function updateProgressBar() {
     let answeredCount = 0;
     quizQuestions.forEach((q, index) => {
@@ -86,13 +120,14 @@ function updateProgressBar() {
     document.getElementById('progressPercent').innerText = `${percentage}%`;
 }
 
-// نظام تشغيل وإدارة الوقت التنازلي
+// تشغيل العداد التنازلي للوقت
 function startTimer() {
+    renderTimer();
     timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
-            alert("⏰ انتهى الوقت المحدد للاختبار (10 دقائق)! سيتم حفظ وإرسال إجاباتك الحالية تلقائياً.");
-            submitQuiz(true); // الإرسال التلقائي الإجباري
+            alert("⏰ انتهى وقت الاختبار (10 دقائق)! سيتم قفل الواجهة وإرسال إجاباتك الحالية تلقائياً للإدارة.");
+            submitQuiz(true);
         } else {
             timeLeft--;
             renderTimer();
@@ -107,21 +142,10 @@ function renderTimer() {
         `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// معالجة التصحيح وعرض النتيجة
+// تصحيح وحفظ البيانات للشيت
 async function submitQuiz(isTimeOut = false) {
-    // إيقاف العداد فوراً لمنع التكرار
     if (timerInterval) clearInterval(timerInterval);
 
-    let empName = document.getElementById('employee-name').value.trim();
-    if (!empName) { 
-        empName = isTimeOut ? "موظف لم يكتب اسمه (انتهى وقته)" : "موظف لم يحدد الاسم";
-        if (!isTimeOut) {
-            alert("يرجى إدخال اسمك أولاً!"); 
-            startTimer(); // إعادة تشغيل المؤقت لو ألغى الإرسال بسبب الاسم
-            return; 
-        }
-    }
-    
     if (!isTimeOut) {
         let answeredAll = true;
         quizQuestions.forEach((q, index) => {
@@ -130,9 +154,9 @@ async function submitQuiz(isTimeOut = false) {
         });
 
         if (!answeredAll) {
-            const confirmSubmit = confirm("لم تقم بحل جميع الأسئلة المطروحة، هل أنت متأكد من رغبتك في الإرسال؟");
+            const confirmSubmit = confirm("تنبيه: لم تحل كافة الأسئلة، هل تود الإرسال وإنهاء الوقت المتبقي؟");
             if (!confirmSubmit) {
-                startTimer(); // تفعيل التايمر مجدداً في حال تراجع عن الإرسال
+                startTimer();
                 return;
             }
         }
@@ -161,23 +185,23 @@ async function submitQuiz(isTimeOut = false) {
     const finalResult = `${score} من ${quizQuestions.length}`;
     const reportDetails = detailsArray.join(" | ");
     
-    // توجيه فوري للموظف لصفحة نتيجته الملونة
-    showResultsPage(empName, score);
+    // الانتقال للنتيجة فوراً
+    showResultsPage(employeeName, score);
     
-    // إرسال البيانات بشكل آمن ومخفي لجوجل شيت
+    // الإرسال الخلفي السلس
     try {
         await fetch(API_URL, {
             method: "POST",
             mode: "no-cors", 
-            body: JSON.stringify({ name: empName, score: finalResult, details: reportDetails })
+            body: JSON.stringify({ name: employeeName, score: finalResult, details: reportDetails })
         });
-        console.log("تم تحديث شيت الإدارة بنجاح.");
+        console.log("تم تحديث السجلات بنجاح.");
     } catch (error) {
-        console.error("فشل إرسال النسخة الخلفية للشيت:", error);
+        console.error("عطل إرسال السجلات:", error);
     }
 }
 
-// بناء لوحة التحكم ومراجعة الأسئلة
+// بناء لوحة النتائج النهائية
 function showResultsPage(name, score) {
     document.getElementById('quiz-view').style.display = 'none';
     document.getElementById('result-view').style.display = 'block';
