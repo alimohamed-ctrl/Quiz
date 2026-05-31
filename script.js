@@ -1,23 +1,27 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxiIoAgbzsfWSc3lCwTW9Dv-TPKyvz0VbYh8fWc_iJPpXL5R9wp3pXpeWExQLvIhqOy4w/exec";
 let allQuestionsRaw = [];
 let todayQuestions = [];
-let timeLeft = 600; // 10 دقائق تعادل 600 ثانية
+let timeLeft = 600; 
 let timerInterval = null;
 let employeeName = "";
+let todayString = ""; // لحفظ التاريخ على مستوى التطبيق
 
 document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
         document.getElementById('themeBtn').innerText = "☀️ وضع مضيء";
     }
-    // سحب الأسئلة فوراً عند فتح الصفحة بالخلفية لتكون جاهزة
+    
+    // حساب تاريخ اليوم فوراً بصيغة سنة-شهر-يوم (YYYY-MM-DD) وعرضه بالشارة الخارجية
+    calculateTodayDate();
+    
+    // سحب الأسئلة فوراً عند فتح الصفحة بالخلفية
     preloadQuizData();
 });
 
 function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute('data-theme');
     const themeBtn = document.getElementById('themeBtn');
-    
     if (currentTheme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'light');
         themeBtn.innerText = "🌙 وضع داكن";
@@ -29,48 +33,47 @@ function toggleTheme() {
     }
 }
 
+function calculateTodayDate() {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0'); 
+    const dd = String(now.getDate()).padStart(2, '0');
+    todayString = `${yyyy}-${mm}-${dd}`; // التنسيق الصارم: سنة-شهر-يوم
+    
+    // تحديث نص الشارة الخارجية بره
+    document.getElementById('topDateBadge').innerText = `📅 اختبار اليوم المجدول: ${todayString}`;
+}
+
 async function preloadQuizData() {
     try {
         const response = await fetch(API_URL);
         allQuestionsRaw = await response.json();
-        document.getElementById('server-status').innerText = "🟢 تم الاتصال بالسيرفر والأسئلة جاهزة للبدء.";
-        document.getElementById('server-status').style.color = "#22c55e";
+        
+        // تفعيل زر ابدأ الاختبار فوراً وتحديث النص لأن الأسئلة أصبحت جاهزة
+        const startBtn = document.getElementById('start-btn');
+        startBtn.disabled = false;
+        startBtn.innerText = "ابدأ الاختبار الآن ⏱️";
     } catch (error) {
-        document.getElementById('server-status').innerText = "🔴 فشل الاتصال بالسيرفر، يرجى إعادة تحديث الصفحة.";
-        document.getElementById('server-status').style.color = "#ef4444";
+        document.getElementById('topDateBadge').innerText = "🔴 عطل في الاتصال بالسيرفر! أعد التحديث.";
         console.error(error);
     }
 }
 
-// دالة البدء عند ضغط الموظف على الزرار بالترتيب الصحيح
+// دالة البدء عند ضغط الموظف على الزرار بالترتيب الصحيح والمضمون
 function startQuiz() {
     const nameInput = document.getElementById('employee-name').value.trim();
     
-    // 1. التحقق من كتابة الاسم
     if (!nameInput) {
         alert("تنبيه إدارة مران: يرجى كتابة اسمك الكامل أولاً قبل بدء الاختبار!");
         return;
     }
     
-    // 2. التحقق من انتهاء تحميل البيانات من السيرفر
-    if (allQuestionsRaw.length === 0) {
-        alert("جاري تحميل حزمة الاختبار من السيرفر، يرجى الانتظار ثانيتين ثم الضغط مجدداً.");
-        return;
-    }
-    
     employeeName = nameInput;
 
-    // 3. جلب تاريخ اليوم بصيغة سنة-شهر-يوم (YYYY-MM-DD)
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0'); // الشهور تبدأ من 0
-    const dd = String(now.getDate()).padStart(2, '0');
-    const todayString = `${yyyy}-${mm}-${dd}`; // التنسيق المطلوب: سنة-شهر-يوم
-
-    // 4. فلترة أسئلة الشيت بناءً على تاريخ اليوم الحالي
+    // تصفية أسئلة الشيت النصية المصححة بمطابقة صلبة
     todayQuestions = allQuestionsRaw.filter(q => q.date && q.date.toString().trim() === todayString);
 
-    // 5. تبديل الواجهات وإظهار الأسئلة والتايمر
+    // تبديل الواجهات وإظهار الأسئلة والتايمر
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('quiz-view').style.display = 'block';
 
@@ -78,13 +81,13 @@ function startQuiz() {
         document.getElementById('quiz-container').innerHTML = `
             <div style="text-align:center; color:var(--danger); font-weight:700; padding:20px; background:rgba(239,68,68,0.05); border-radius:8px; border:1px solid var(--danger);">
                 ⚠️ لا توجد أسئلة مخصصة لتاريخ اليوم (${todayString}) في ملف الإدارة! 
-                <br><small style="font-weight:400; color:var(--text-muted)">يرجى التأكد من كتابة التاريخ في عمود التاريخ بالشيت بصيغة سنة-شهر-يوم (مثال: 2026-05-31).</small>
+                <br><small style="font-weight:400; color:var(--text-muted)">يرجى التأكد من أن التواريخ مضافة بالعمود E وتطابق فورمات اليوم الحالي.</small>
             </div>`;
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('quizHeader').style.display = 'none';
     } else {
         displayQuestions();
-        startTimer(); // بدء الـ 10 دقائق الآن بالظبط
+        startTimer(); 
     }
 }
 
