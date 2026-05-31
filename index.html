@@ -71,10 +71,10 @@
             z-index: 101;
         }
 
-        /* شريط التايمر والإنجاز الثابت الذكي */
+        /* شريط التايمر والإنجاز الثابت الذكي المحدث */
         .sticky-header {
             position: sticky;
-            top: -41px; /* يلتصق بأعلى الشاشة بسلاسة */
+            top: 0; /* تم التعديل ليلتصق بأعلى الشاشة تماماً بدون اختفاء */
             background: var(--card-bg);
             padding: 15px 0;
             border-bottom: 2px solid var(--border-color);
@@ -98,7 +98,7 @@
             padding: 6px 14px;
             border-radius: 8px;
             border: 1px solid rgba(239, 68, 68, 0.2);
-            font-variant-numeric: tabular-nums; /* تمنع اهتزاز الأرقام أثناء العد التنازلي */
+            font-variant-numeric: tabular-nums;
         }
 
         .progress-box {
@@ -192,7 +192,6 @@
             height: 18px;
         }
 
-        /* ألوان لوحة النتيجة والمراجعة */
         .correct-opt {
             border-color: var(--success) !important;
             background: rgba(34, 197, 94, 0.1) !important;
@@ -260,11 +259,19 @@
 <div class="container">
     <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙 وضع داكن</button>
 
-    <div id="quiz-view">
+    <div id="login-view">
         <h1>اختبار موظفين مبيعات مران</h1>
-        <div class="subtitle">الرجاء التركيز والإجابة على كافة الأسئلة المطلوبة</div>
+        <div class="subtitle">مرحباً بك، يرجى كتابة اسمك الكامل للبدء في نظام التقييم والتدريب</div>
         
-        <div class="sticky-header" id="quizHeader" style="display: none;">
+        <div class="input-group">
+            <label for="employee-name">اسم الموظف بالكامل:</label>
+            <input type="text" id="employee-name" placeholder="أدخل اسمك ثلاثياً أو رباعياً للبدء">
+        </div>
+        <button class="main-btn" onclick="startQuiz()">ابدأ الاختبار الآن ⏱️</button>
+    </div>
+
+    <div id="quiz-view" style="display: none;">
+        <div class="sticky-header" id="quizHeader">
             <div class="header-meta">
                 <div class="timer-box">⏱️ الوقت المتبقي: <span id="timerText">10:00</span></div>
                 <div class="progress-box">نسبة الإنجاز: <span id="progressPercent">0%</span></div>
@@ -274,12 +281,7 @@
             </div>
         </div>
 
-        <div class="input-group">
-            <label for="employee-name">اسم الموظف بالكامل:</label>
-            <input type="text" id="employee-name" placeholder="أدخل اسمك ثلاثياً أو رباعياً">
-        </div>
-
-        <div id="loading">جاري جلب حزمة الأسئلة المحدثة...</div>
+        <div id="loading">جاري تهيئة بيئة الأسئلة...</div>
         <div id="quiz-container"></div>
 
         <button id="submit-btn" class="main-btn" onclick="submitQuiz(false)" style="display: none;">إنهاء الاختبار وإرسال الإجابات</button>
