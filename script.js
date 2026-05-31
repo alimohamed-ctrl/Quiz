@@ -1,16 +1,16 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxiIoAgbzsfWSc3lCwTW9Dv-TPKyvz0VbYh8fWc_iJPpXL5R9wp3pXpeWExQLvIhqOy4w/exec";
-let quizQuestions = [];
+let allQuestionsRaw = [];
+let todayQuestions = [];
 let timeLeft = 600; // 10 دقائق
 let timerInterval = null;
-let employeeName = ""; // لحفظ الاسم عالمياً
+let employeeName = "";
 
 document.addEventListener('DOMContentLoaded', () => {
     if (localStorage.getItem('theme') === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
-        const themeBtn = document.getElementById('themeBtn');
-        if (themeBtn) themeBtn.innerText = "☀️ وضع مضيء";
+        document.getElementById('themeBtn').innerText = "☀️ وضع مضيء";
     }
-    // نقوم بجلب الأسئلة في الخلفية لتكون جاهزة فوراً عند بدء الموظف
+    // جلب كل الأسئلة في الخلفية فور فتح الصفحة
     preloadQuizData();
 });
 
@@ -20,27 +20,30 @@ function toggleTheme() {
     
     if (currentTheme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'light');
-        if (themeBtn) themeBtn.innerText = "🌙 وضع داكن";
+        themeBtn.innerText = "🌙 وضع داكن";
         localStorage.setItem('theme', 'light');
     } else {
         document.documentElement.setAttribute('data-theme', 'dark');
-        if (themeBtn) themeBtn.innerText = "☀️ وضع مضيء";
+        themeBtn.innerText = "☀️ وضع مضيء";
         localStorage.setItem('theme', 'dark');
     }
 }
 
-// دالة جلب البيانات المسبق
 async function preloadQuizData() {
     try {
         const response = await fetch(API_URL);
-        quizQuestions = await response.json();
+        allQuestionsRaw = await response.json();
+        
+        // إخفاء كلمة جاري التحميل وإظهار زر ابدأ بأمان
         document.getElementById('loading').style.display = 'none';
+        document.getElementById('start-btn').style.display = 'block';
     } catch (error) {
-        console.error("خطأ جلب الأسئلة المسبق:", error);
+        document.getElementById('loading').innerText = "فشل الاتصال بالسيرفر، يرجى إعادة تحديث الصفحة.";
+        console.error(error);
     }
 }
 
-// [دالة جوهرية جديدة]: تبدأ فقط بعد التأكد من الاسم وضغط الزر
+// دالة زر "ابدأ الاختبار" المستقرة مع إضافة فلتر تاريخ اليوم
 function startQuiz() {
     const nameInput = document.getElementById('employee-name').value.trim();
     if (!nameInput) {
@@ -48,43 +51,41 @@ function startQuiz() {
         return;
     }
     
-    employeeName = nameInput; // تخزين الاسم
-    
+    employeeName = nameInput;
+
+    // جلب تاريخ اليوم الحالي بجهاز الموظف بصيغة yyyy-mm-dd
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayString = `${yyyy}-${mm}-${dd}`;
+
+    // فلترة الأسئلة المخزنة بناءً على تاريخ اليوم
+    todayQuestions = allQuestionsRaw.filter(q => q.date && q.date.toString().trim() === todayString);
+
     // الانتقال لواجهة الأسئلة وإخفاء واجهة الدخول
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('quiz-view').style.display = 'block';
-    
-    // في حال تأخر التحميل بالخلفية
-    if (quizQuestions.length === 0) {
-        document.getElementById('loading').innerText = "ثواني.. جاري إعداد ورقة الأسئلة الخاصة بك...";
-        checkDataLoadedInterval();
+
+    if (todayQuestions.length === 0) {
+        document.getElementById('quiz-container').innerHTML = `
+            <div style="text-align:center; color:var(--danger); font-weight:700; padding:20px; background:rgba(239,68,68,0.05); border-radius:8px; border:1px solid var(--danger);">
+                ⚠️ لا توجد أسئلة مخصصة أو مجدولة لتاريخ اليوم (${todayString}) في ملف الإدارة! 
+                <br><small style="font-weight:400; color:var(--text-muted)">يرجى مراجعة عمود التاريخ (العمود E) بجدول الأسئلة.</small>
+            </div>`;
+        document.getElementById('submit-btn').style.display = 'none';
+        document.getElementById('quizHeader').style.display = 'none';
     } else {
-        initQuizDisplay();
+        displayQuestions();
+        startTimer(); // يبدأ التايمر الآن بالظبط بعد الضغط والتحقق من التاريخ
     }
 }
 
-function checkDataLoadedInterval() {
-    let checkTimer = setInterval(() => {
-        if (quizQuestions.length > 0) {
-            clearInterval(checkTimer);
-            document.getElementById('loading').style.display = 'none';
-            initQuizDisplay();
-        }
-    }, 500);
-}
-
-function initQuizDisplay() {
-    displayQuestions();
-    document.getElementById('submit-btn').style.display = 'block';
-    startTimer(); // بدء التايمر الـ 10 دقائق الآن بالظبط!
-}
-
-// عرض الأسئلة
 function displayQuestions() {
     const quizContainer = document.getElementById('quiz-container');
     quizContainer.innerHTML = "";
     
-    quizQuestions.forEach((q, index) => {
+    todayQuestions.forEach((q, index) => {
         let optionsHTML = "";
         q.options.forEach(opt => {
             let cleanedOpt = opt.trim();
@@ -105,28 +106,27 @@ function displayQuestions() {
             </div>
         `;
     });
+    updateProgressBar();
 }
 
-// تحديث البروجرس بار العلوي الثابت
 function updateProgressBar() {
     let answeredCount = 0;
-    quizQuestions.forEach((q, index) => {
+    todayQuestions.forEach((q, index) => {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
         if (selected) answeredCount++;
     });
     
-    let percentage = quizQuestions.length > 0 ? Math.round((answeredCount / quizQuestions.length) * 100) : 0;
+    let percentage = todayQuestions.length > 0 ? Math.round((answeredCount / todayQuestions.length) * 100) : 0;
     document.getElementById('progressBarFill').style.width = `${percentage}%`;
     document.getElementById('progressPercent').innerText = `${percentage}%`;
 }
 
-// تشغيل العداد التنازلي للوقت
 function startTimer() {
     renderTimer();
     timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
-            alert("⏰ انتهى وقت الاختبار (10 دقائق)! سيتم قفل الواجهة وإرسال إجاباتك الحالية تلقائياً للإدارة.");
+            alert("⏰ انتهى وقت الاختبار المتاح (10 دقائق)! سيتم حفظ إجاباتك الحالية تلقائياً.");
             submitQuiz(true);
         } else {
             timeLeft--;
@@ -138,17 +138,15 @@ function startTimer() {
 function renderTimer() {
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
-    document.getElementById('timerText').innerText = 
-        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    document.getElementById('timerText').innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// تصحيح وحفظ البيانات للشيت
 async function submitQuiz(isTimeOut = false) {
     if (timerInterval) clearInterval(timerInterval);
 
     if (!isTimeOut) {
         let answeredAll = true;
-        quizQuestions.forEach((q, index) => {
+        todayQuestions.forEach((q, index) => {
             const selected = document.querySelector(`input[name="q${index}"]:checked`);
             if (!selected) answeredAll = false;
         });
@@ -165,7 +163,7 @@ async function submitQuiz(isTimeOut = false) {
     let score = 0;
     let detailsArray = [];
     
-    quizQuestions.forEach((q, index) => {
+    todayQuestions.forEach((q, index) => {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
         let qNum = index + 1;
         
@@ -182,13 +180,11 @@ async function submitQuiz(isTimeOut = false) {
         }
     });
 
-    const finalResult = `${score} من ${quizQuestions.length}`;
+    const finalResult = `${score} من ${todayQuestions.length}`;
     const reportDetails = detailsArray.join(" | ");
     
-    // الانتقال للنتيجة فوراً
     showResultsPage(employeeName, score);
     
-    // الإرسال الخلفي السلس
     try {
         await fetch(API_URL, {
             method: "POST",
@@ -201,21 +197,20 @@ async function submitQuiz(isTimeOut = false) {
     }
 }
 
-// بناء لوحة النتائج النهائية
 function showResultsPage(name, score) {
     document.getElementById('quiz-view').style.display = 'none';
     document.getElementById('result-view').style.display = 'block';
     
     document.getElementById('employee-greeting').innerText = `أهلاً بك يا ${name}، لقد أتممت الاختبار بنجاح وتم تسجيل النتيجة بمستندات الإدارة.`;
     
-    let percentage = quizQuestions.length > 0 ? Math.round((score / quizQuestions.length) * 100) : 0;
+    let percentage = todayQuestions.length > 0 ? Math.round((score / todayQuestions.length) * 100) : 0;
     document.getElementById('percentageCircle').innerHTML = `${percentage}% <span>النسبة المئوية</span>`;
-    document.getElementById('totalScoreText').innerText = `مجموع إجاباتك الصحيحة هو: ${score} من أصل ${quizQuestions.length} سؤال.`;
+    document.getElementById('totalScoreText').innerText = `مجموع إجاباتك الصحيحة هو: ${score} من أصل ${todayQuestions.length} سؤال.`;
     
     const reviewContainer = document.getElementById('review-container');
     reviewContainer.innerHTML = "";
     
-    quizQuestions.forEach((q, index) => {
+    todayQuestions.forEach((q, index) => {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
         let userSelection = selected ? selected.value : "لم تقم باختيار إجابة";
         let correctAnswer = q.answer ? q.answer.toString().trim() : "";
