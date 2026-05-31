@@ -1,7 +1,7 @@
 const API_URL = "https://script.google.com/macros/s/AKfycbxiIoAgbzsfWSc3lCwTW9Dv-TPKyvz0VbYh8fWc_iJPpXL5R9wp3pXpeWExQLvIhqOy4w/exec";
 let allQuestionsRaw = [];
 let todayQuestions = [];
-let timeLeft = 600; // 10 دقائق
+let timeLeft = 600; // 10 دقائق تعادل 600 ثانية
 let timerInterval = null;
 let employeeName = "";
 
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.setAttribute('data-theme', 'dark');
         document.getElementById('themeBtn').innerText = "☀️ وضع مضيء";
     }
-    // جلب كل الأسئلة في الخلفية فور فتح الصفحة
+    // سحب الأسئلة فوراً عند فتح الصفحة بالخلفية لتكون جاهزة
     preloadQuizData();
 });
 
@@ -33,51 +33,58 @@ async function preloadQuizData() {
     try {
         const response = await fetch(API_URL);
         allQuestionsRaw = await response.json();
-        
-        // إخفاء كلمة جاري التحميل وإظهار زر ابدأ بأمان
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('start-btn').style.display = 'block';
+        document.getElementById('server-status').innerText = "🟢 تم الاتصال بالسيرفر والأسئلة جاهزة للبدء.";
+        document.getElementById('server-status').style.color = "#22c55e";
     } catch (error) {
-        document.getElementById('loading').innerText = "فشل الاتصال بالسيرفر، يرجى إعادة تحديث الصفحة.";
+        document.getElementById('server-status').innerText = "🔴 فشل الاتصال بالسيرفر، يرجى إعادة تحديث الصفحة.";
+        document.getElementById('server-status').style.color = "#ef4444";
         console.error(error);
     }
 }
 
-// دالة زر "ابدأ الاختبار" المستقرة مع إضافة فلتر تاريخ اليوم
+// دالة البدء عند ضغط الموظف على الزرار بالترتيب الصحيح
 function startQuiz() {
     const nameInput = document.getElementById('employee-name').value.trim();
+    
+    // 1. التحقق من كتابة الاسم
     if (!nameInput) {
-        alert("تنبيه: يرجى كتابة اسمك الكامل أولاً قبل بدء الاختبار والتوقيت!");
+        alert("تنبيه إدارة مران: يرجى كتابة اسمك الكامل أولاً قبل بدء الاختبار!");
+        return;
+    }
+    
+    // 2. التحقق من انتهاء تحميل البيانات من السيرفر
+    if (allQuestionsRaw.length === 0) {
+        alert("جاري تحميل حزمة الاختبار من السيرفر، يرجى الانتظار ثانيتين ثم الضغط مجدداً.");
         return;
     }
     
     employeeName = nameInput;
 
-    // جلب تاريخ اليوم الحالي بجهاز الموظف بصيغة yyyy-mm-dd
+    // 3. جلب تاريخ اليوم بصيغة سنة-شهر-يوم (YYYY-MM-DD)
     const now = new Date();
     const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0'); // الشهور تبدأ من 0
     const dd = String(now.getDate()).padStart(2, '0');
-    const todayString = `${yyyy}-${mm}-${dd}`;
+    const todayString = `${yyyy}-${mm}-${dd}`; // التنسيق المطلوب: سنة-شهر-يوم
 
-    // فلترة الأسئلة المخزنة بناءً على تاريخ اليوم
+    // 4. فلترة أسئلة الشيت بناءً على تاريخ اليوم الحالي
     todayQuestions = allQuestionsRaw.filter(q => q.date && q.date.toString().trim() === todayString);
 
-    // الانتقال لواجهة الأسئلة وإخفاء واجهة الدخول
+    // 5. تبديل الواجهات وإظهار الأسئلة والتايمر
     document.getElementById('login-view').style.display = 'none';
     document.getElementById('quiz-view').style.display = 'block';
 
     if (todayQuestions.length === 0) {
         document.getElementById('quiz-container').innerHTML = `
             <div style="text-align:center; color:var(--danger); font-weight:700; padding:20px; background:rgba(239,68,68,0.05); border-radius:8px; border:1px solid var(--danger);">
-                ⚠️ لا توجد أسئلة مخصصة أو مجدولة لتاريخ اليوم (${todayString}) في ملف الإدارة! 
-                <br><small style="font-weight:400; color:var(--text-muted)">يرجى مراجعة عمود التاريخ (العمود E) بجدول الأسئلة.</small>
+                ⚠️ لا توجد أسئلة مخصصة لتاريخ اليوم (${todayString}) في ملف الإدارة! 
+                <br><small style="font-weight:400; color:var(--text-muted)">يرجى التأكد من كتابة التاريخ في عمود التاريخ بالشيت بصيغة سنة-شهر-يوم (مثال: 2026-05-31).</small>
             </div>`;
         document.getElementById('submit-btn').style.display = 'none';
         document.getElementById('quizHeader').style.display = 'none';
     } else {
         displayQuestions();
-        startTimer(); // يبدأ التايمر الآن بالظبط بعد الضغط والتحقق من التاريخ
+        startTimer(); // بدء الـ 10 دقائق الآن بالظبط
     }
 }
 
@@ -126,7 +133,7 @@ function startTimer() {
     timerInterval = setInterval(() => {
         if (timeLeft <= 0) {
             clearInterval(timerInterval);
-            alert("⏰ انتهى وقت الاختبار المتاح (10 دقائق)! سيتم حفظ إجاباتك الحالية تلقائياً.");
+            alert("⏰ انتهى وقت الاختبار المحدد! سيتم إرسال إجاباتك الحالية تلقائياً للإدارة.");
             submitQuiz(true);
         } else {
             timeLeft--;
@@ -152,7 +159,7 @@ async function submitQuiz(isTimeOut = false) {
         });
 
         if (!answeredAll) {
-            const confirmSubmit = confirm("تنبيه: لم تحل كافة الأسئلة، هل تود الإرسال وإنهاء الوقت المتبقي؟");
+            const confirmSubmit = confirm("تنبيه: لم تحل كافة الأسئلة، هل تود إرسال ورقتك وإنهاء الوقت؟");
             if (!confirmSubmit) {
                 startTimer();
                 return;
@@ -191,7 +198,6 @@ async function submitQuiz(isTimeOut = false) {
             mode: "no-cors", 
             body: JSON.stringify({ name: employeeName, score: finalResult, details: reportDetails })
         });
-        console.log("تم تحديث السجلات بنجاح.");
     } catch (error) {
         console.error("عطل إرسال السجلات:", error);
     }
